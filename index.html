@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, minimum-scale=1.0, maximum-scale=5.0" />
+  <title>Reciprocidad Visual</title>
+
+  <!-- Enlace al manifest para PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Reciprocidad">
+  <meta name="theme-color" content="#2b6cb0">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <style>
+    :root {
+      --bg: #f8f7f5;
+      --card: #ffffff;
+      --accent: #2b6cb0; /* azul - velocidad */
+      --aperture: #d97706; /* ámbar - diafragma */
+      --iso: #059669;     /* verde - ISO */
+      --text: #111;
+      --muted: #666;
+      --light-border: #eee;
+      --good: #2a9d8f;
+      --bad: #e76f51;
+      font-family: "Segoe UI", Roboto, system-ui, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 12px;
+      min-height: 100vh;
+      font-size: 16px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .subtitle {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* === REFERENCIA SUPERIOR EN 3 LÍNEAS === */
+    .ref-strip {
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+
+    .ref-label {
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 13px;
+      margin: 8px 0 4px;
+    }
+
+    .ref-row {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      white-space: nowrap;
+      scrollbar-width: thin;
+      padding: 2px 0;
+      font-family: monospace;
+    }
+
+    .ref-item {
+      background: #f5f7fb;
+      border: 1px solid var(--light-border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    /* CONTROLES SIMPLIFICADOS */
+    .controls {
+      display: grid;
+      gap: 1px;
+      background: var(--light-border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .control {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      background: white;
+    }
+
+    .color-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-shutter { background: var(--accent); }
+    .dot-aperture { background: var(--aperture); }
+    .dot-iso { background: var(--iso); }
+
+    .control input[type="range"] {
+      flex: 1;
+      min-width: 120px;
+      height: 36px;
+      -webkit-appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .control input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 24px;
+      height: 24px;
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      cursor: pointer;
+    }
+    .control:nth-child(1) input[type="range"]::-webkit-slider-thumb { background: var(--accent); }
+    .control:nth-child(2) input[type="range"]::-webkit-slider-thumb { background: var(--aperture); }
+    .control:nth-child(3) input[type="range"]::-webkit-slider-thumb { background: var(--iso); }
+
+    .value {
+      min-width: 85px;
+      text-align: right;
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    /* EXPOSÍMETRO CON AGUJA */
+    .meter {
+      margin-top: 18px;
+      height: 50px;
+      border-radius: 10px;
+      background: #f8f9fb;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #ddd;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .meter .scale {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      transform: translateY(-50%);
+      font-weight: bold;
+      font-size: 13px;
+      color: #555;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #needle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 2px;
+      background: #e76f51;
+      transform: translateX(-50%);
+      transition: left 0.4s ease;
+      z-index: 2;
+    }
+
+    .delta {
+      text-align: center;
+      margin-top: 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    /* BOTONES Y RESULTADO */
+    .bread {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      flex: 1 1 calc(50% - 6px);
+      min-width: 130px;
+      transition: all 0.2s;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    button.secondary {
+      background: #f0f3f5;
+      color: var(--text);
+    }
+
+    button:active { opacity: 0.85; }
+
+    .combo {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f0f3f5;
+      border-radius: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 15px;
+      font-weight: bold;
+      text-align: center;
+      color: var(--text);
+    }
+
+    .suggestions {
+      margin-top: 16px;
+      font-size: 15px;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .result-ok { color: var(--good); font-weight: 600; }
+    .result-bad { color: var(--bad); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <!-- Referencia superior -->
+      <div class="ref-strip">
+        <div class="ref-label">Velocidad</div>
+        <div class="ref-row">
+          <span class="ref-item">1"</span>
+          <span class="ref-item">1/2</span>
+          <span class="ref-item">1/4</span>
+          <span class="ref-item">1/8</span>
+          <span class="ref-item">1/15</span>
+          <span class="ref-item">1/30</span>
+          <span class="ref-item">1/60</span>
+          <span class="ref-item">1/125</span>
+          <span class="ref-item">1/250</span>
+          <span class="ref-item">1/500</span>
+          <span class="ref-item">1/1000</span>
+        </div>
+
+        <div class="ref-label">Diafragma</div>
+        <div class="ref-row">
+          <span class="ref-item">f/1.4</span>
+          <span class="ref-item">f/2</span>
+          <span class="ref-item">f/2.8</span>
+          <span class="ref-item">f/4</span>
+          <span class="ref-item">f/5.6</span>
+          <span class="ref-item">f/8</span>
+          <span class="ref-item">f/11</span>
+          <span class="ref-item">f/16</span>
+          <span class="ref-item">f/22</span>
+        </div>
+
+        <div class="ref-label">ISO</div>
+        <div class="ref-row">
+          <span class="ref-item">100</span>
+          <span class="ref-item">200</span>
+          <span class="ref-item">400</span>
+          <span class="ref-item">800</span>
+          <span class="ref-item">1600</span>
+          <span class="ref-item">3200</span>
+          <span class="ref-item">6400</span>
+        </div>
+      </div>
+
+      <h1>Reciprocidad</h1>
+      <p class="subtitle">Ajustá los valores para equilibrar la exposición.</p>
+
+      <div class="controls">
+        <div class="control">
+          <div class="color-dot dot-shutter"></div>
+          <input id="shutter" type="range" min="0" max="12" step="1" value="7">
+          <div class="value" id="shutterVal">1/125</div>
+        </div>
+
+        <div class="control">
+          <div class="color-dot dot-aperture"></div>
+          <input id="aperture" type="range" min="0" max="8" step="1" value="4">
+          <div class="value" id="apertureVal">f/5.6</div>
+        </div>
+
+        <div class="control">
+          <div class="color-dot dot-iso"></div>
+          <input id="iso" type="range" min="0" max="6" step="1" value="0">
+          <div class="value" id="isoVal">100</div>
+        </div>
+      </div>
+
+      <!-- Exposímetro con aguja -->
+      <div class="meter">
+        <div class="scale">
+          <div>-2</div><div>-1</div><div>0</div><div>+1</div><div>+2</div>
+        </div>
+        <div id="needle"></div>
+      </div>
+      <div class="delta">Δ: <span id="delta">0.00</span> pasos</div>
+
+      <div class="bread">
+        <button id="compensate" class="primary">Sugerir ajuste</button>
+        <button id="reset" class="secondary">Reiniciar</button>
+      </div>
+
+      <div class="combo" id="currentCombo">1/125 · f/5.6 · ISO 100</div>
+
+      <div class="suggestions" id="suggestText">
+        Mueve los controles para ver si estás bien expuesto.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const shutterValues = [1,2,4,8,15,30,60,125,250,500,1000,2000,4000];
+    const shutterLabels = ["1\"","1/2","1/4","1/8","1/15","1/30","1/60","1/125","1/250","1/500","1/1000","1/2000","1/4000"];
+    const apertureValues = [1.4,2,2.8,4,5.6,8,11,16,22];
+    const isoValues = [100,200,400,800,1600,3200,6400];
+
+    let base = {s:125, a:5.6, i:100};
+
+    function log2(x){ return Math.log(x)/Math.log(2); }
+    function computeStops(s,a,i){
+      return log2(s/base.s) + 2*log2(base.a/a) + log2(i/base.i);
+    }
+    function formatVal(s,a,i){
+      let label = shutterLabels[shutterValues.indexOf(s)] || `1/${s}`;
+      return `${label} · f/${a} · ISO ${i}`;
+    }
+
+    function suggestCorrection(s, a, i, delta) {
+      const absDelta = Math.abs(delta);
+      if (absDelta < 0.15) return "✅ Exposición correcta";
+
+      const suggestions = [];
+      if (delta > 0) {
+        if (i > 100) suggestions.push(`bajar ISO a ${Math.max(100, i / 2)}`);
+        if (s < 4000) suggestions.push(`subir velocidad a 1/${Math.min(4000, s * 2)}`);
+        if (a < 22 && apertureValues.indexOf(a)+1 < apertureValues.length)
+          suggestions.push(`cerrar a f/${apertureValues[apertureValues.indexOf(a)+1]}`);
+      } else {
+        if (i < 6400) suggestions.push(`subir ISO a ${Math.min(6400, i * 2)}`);
+        if (s > 1) suggestions.push(`bajar velocidad a 1/${Math.max(1, s / 2)}`);
+        if (a > 1.4 && apertureValues.indexOf(a)-1 >= 0)
+          suggestions.push(`abrir a f/${apertureValues[apertureValues.indexOf(a)-1]}`);
+      }
+      return `💡 Ajusta: ${suggestions.slice(0,2).join(" o ")}.`;
+    }
+
+    function update(){
+      let s = shutterValues[+shutter.value];
+      let a = apertureValues[+aperture.value];
+      let i = isoValues[+iso.value];
+
+      shutterVal.textContent = shutterLabels[+shutter.value];
+      apertureVal.textContent = "f/"+a;
+      isoVal.textContent = i;
+      currentCombo.textContent = formatVal(s,a,i);
+
+      let t = computeStops(s,a,i);
+      delta.textContent = t.toFixed(2);
+
+      // Posicionar la aguja: -2 → 0%, +2 → 100%
+      const pos = Math.max(0, Math.min(100, (t + 2) * 25));
+      document.getElementById("needle").style.left = `${pos}%`;
+
+      suggestText.innerHTML = suggestCorrection(s, a, i, t);
+    }
+
+    function resetAll(){
+      shutter.value = 7;
+      aperture.value = 4;
+      iso.value = 0;
+      update();
+    }
+
+    // Eventos
+    document.querySelectorAll("input[type='range']").forEach(e => e.addEventListener("input", update));
+    document.getElementById("reset").addEventListener("click", resetAll);
+    document.getElementById("compensate").addEventListener("click", update);
+
+    update(); // Inicializar
+  </script>
+</body>
+</html>
